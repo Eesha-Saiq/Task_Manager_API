@@ -1,15 +1,27 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional
+import uuid
 
 app = FastAPI()
 
 tasks = []
 
-class Task(BaseModel):
-    id: int
-    title: str
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=3)
+    description: Optional[str] = None
     completed: bool = False
-    description: str 
+
+class TaskUpdate(BaseModel):
+    title: str = Field(..., min_length=3)
+    description: Optional[str] = None
+    completed: bool = False
+
+class Task(BaseModel):
+    id: str 
+    title: str = Field(..., min_length=3)
+    description: Optional[str] = None
+    completed: bool = False
 
 @app.get("/")
 def home():
@@ -20,10 +32,21 @@ def get_tasks():
     return tasks
 
 @app.post("/tasks")
-def create_task(task: Task):
-    tasks.append(task)
-    return {"message": "Task added", "task": task}
+def create_task(task: TaskCreate):
 
+    new_task = Task(
+        id=str(uuid.uuid4()),
+        title=task.title,
+        description=task.description,
+        completed=task.completed
+    )
+
+    tasks.append(new_task)
+
+    return {
+        "message": "Task added",
+        "task": new_task
+    }
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int):
@@ -31,24 +54,34 @@ def get_task(task_id: int):
         if task.id == task_id:
             return task
 
-    return {"message": "Task not found"}
+    raise HTTPException(status_code=404, detail="Task not found")
 
 
 @app.put("/tasks/{task_id}")
-def update_task(task_id: int, updated_task: Task):
+def update_task(task_id: str, updated_task: TaskUpdate):
 
     for index, task in enumerate(tasks):
 
         if task.id == task_id:
 
-            tasks[index] = updated_task
+            updated = Task(
+                id=task.id,
+                title=updated_task.title,
+                description=updated_task.description,
+                completed=updated_task.completed
+            )
+
+            tasks[index] = updated
 
             return {
-                "message": "Task updated",
-                "task": updated_task
+                "message": "Task updated successfully",
+                "task": updated
             }
 
-    return {"message": "Task not found"}
+    raise HTTPException(
+        status_code=404,
+        detail="Task not found"
+    )
 
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int):
@@ -63,5 +96,4 @@ def delete_task(task_id: int):
                 "message": "Task deleted successfully",
                 "task": deleted_task
             }
-
-    return {"message": "Task not found"}
+    raise HTTPException(status_code=404, detail="Task not found")
